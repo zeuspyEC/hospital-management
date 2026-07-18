@@ -1,1 +1,13 @@
 target
+node_modules/
+coverage/
+.env
+*.env
+application-local.properties
+*.log
+.idea/
+.vscode/
+.DS_Store
+*.iml
+playwright-report/
+test-results/
