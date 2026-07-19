@@ -1,0 +1,488 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\usepackage{graphicx}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  columns=fullflexible,
+  showstringspaces=false
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Hospital Management System}
+\lhead{Informe Final -- V\&V de Software}
+\rfoot{\thepage}
+
+\begin{document}
+
+% ============================================================
+% CARATULA
+% ============================================================
+\begin{titlepage}
+\centering
+\vspace*{1cm}
+
+{\Large \textbf{ESCUELA POLIT\'ECNICA NACIONAL}}\\[0.3cm]
+{\large FACULTAD DE INGENIER\'IA DE SISTEMAS}\\[1.5cm]
+
+\rule{\linewidth}{0.5pt}\\[0.4cm]
+{\Large \textbf{PROYECTO FINAL}}\\[0.2cm]
+{\Large \textbf{VALIDACI\'ON Y VERIFICACI\'ON DE SOFTWARE}}\\[0.4cm]
+\rule{\linewidth}{0.5pt}\\[1.2cm]
+
+{\huge \textbf{Hospital Management System}}\\[0.3cm]
+{\large Informe Final de Entregables}\\[2cm]
+
+\begin{tabular}{rl}
+\textbf{Integrantes:} & Erick Costa -- L\'ider Backend \\
+                       & Jimmy Arias -- L\'ider Frontend \\
+                       & Paul Salas -- L\'ider QA, Calidad y Seguridad \\[0.4cm]
+\textbf{Profesor:}    & Christian Su\'arez \\[0.4cm]
+\textbf{Asignatura:}  & Validaci\'on y Verificaci\'on de Software \\[0.4cm]
+\textbf{Per\'iodo Acad\'emico:} & 2026A \\[0.4cm]
+\textbf{Fecha:}       & 19 de julio de 2026 \\[0.4cm]
+\textbf{Repositorio:} & \url{https://github.com/zeuspyEC/hospital-management}
+\end{tabular}
+
+\vfill
+{\small Quito, Ecuador}
+\end{titlepage}
+
+\thispagestyle{fancy}
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Introducci\'on}
+
+Este documento consolida los entregables del proyecto final de Validaci\'on y
+Verificaci\'on de Software sobre el \emph{Hospital Management System}: un
+sistema fullstack (Spring Boot 3.3 + JavaScript vanilla + PostgreSQL 16)
+provisto como base por la c\'atedra, con deficiencias intencionales que el
+grupo deb\'ia detectar mediante pruebas sistem\'aticas, an\'alisis est\'atico y
+an\'alisis de seguridad.
+
+Todo resultado presentado aqu\'i proviene de \textbf{ejecuciones reales} de
+las herramientas correspondientes contra el c\'odigo del repositorio, no de
+estimaciones. Cada secci\'on referencia el comando exacto usado y el archivo
+de reporte crudo correspondiente en \texttt{docs/informes/} o
+\texttt{informes/}, para que puedan reproducirse de forma independiente.
+
+Este informe describe \textbf{qu\'e se construy\'o y qu\'e resultado dio al
+ejecutarlo}; la evaluaci\'on y calificaci\'on de cada entregable frente a la
+r\'ubrica del curso corresponde al profesor.
+
+\section{Distribuci\'on del equipo}
+
+\begin{longtable}{@{}p{2.5cm}p{3cm}p{6.3cm}p{2cm}@{}}
+\toprule
+\textbf{Integrante} & \textbf{Rol} & \textbf{\'Areas de responsabilidad} & \textbf{Rama Git} \\
+\midrule
+\endhead
+Erick Costa & L\'ider Backend &
+  Configuraci\'on del backend, pruebas unitarias (JUnit 5 + Mockito),
+  pruebas de integraci\'on (SpringBootTest + MockMvc + H2), correcci\'on de
+  un bug real de serializaci\'on que romp\'ia \texttt{/api/citas} y
+  \texttt{/api/historias-clinicas}. &
+  \texttt{feature/backend-erick} \\
+Jimmy Arias & L\'ider Frontend &
+  Pruebas unitarias con Jest (\texttt{utils.js}, \texttt{api.js}), pruebas
+  End-to-End con Playwright sobre los 4 flujos principales. &
+  \texttt{feature/frontend-jimmy} \\
+Paul Salas & L\'ider QA, Calidad y Seguridad &
+  An\'alisis est\'atico (Checkstyle, SpotBugs + FindSecBugs, ESLint),
+  an\'alisis de seguridad OWASP Top 10, documentaci\'on de hallazgos. &
+  \texttt{feature/qa-paul} \\
+\bottomrule
+\end{longtable}
+
+El flujo de ramas (\texttt{main} $\leftarrow$ \texttt{develop} $\leftarrow$
+\texttt{feature/*}), las reglas de commit y el checklist de Pull Request
+usados por el equipo est\'an definidos en
+\texttt{.claude/skills/team-git-workflow/SKILL.md} y
+\texttt{CONTRIBUTING.md}, ambos versionados en el repositorio.
+
+\newpage
+% ============================================================
+\section{Arquitectura del sistema}
+
+\begin{itemize}[nosep]
+  \item \textbf{Backend:} Spring Boot 3.3.0, Spring Data JPA, Jakarta
+    Validation, arquitectura en capas (\texttt{Controller} $\to$
+    \texttt{Service} $\to$ \texttt{Repository}), con DTOs para la
+    comunicaci\'on REST y un \texttt{GlobalExceptionHandler} centralizado.
+  \item \textbf{Frontend:} JavaScript vanilla modular (\texttt{app.js},
+    \texttt{api.js}, \texttt{utils.js} y un m\'odulo por entidad), sin
+    bundler ni framework -- los objetos de cada m\'odulo se referencian
+    desde atributos \texttt{onclick} en HTML generado din\'amicamente.
+  \item \textbf{Base de datos:} PostgreSQL 16 en contenedor Docker, con
+    \texttt{schema.sql}/\texttt{data.sql} de inicializaci\'on.
+  \item \textbf{Entidades:} Paciente, Doctor, Cita (relaci\'on
+    \texttt{@ManyToOne} a Doctor, pero \texttt{pacienteId} es solo una
+    columna sin FK) e HistoriaClinica (relaciones a Paciente y Doctor).
+\end{itemize}
+
+\section{Flujo de trabajo y control de versiones}
+
+\begin{longtable}{@{}p{4cm}p{3cm}p{7cm}@{}}
+\toprule
+\textbf{Rama} & \textbf{Commits desde main} & \textbf{Contenido principal} \\
+\midrule
+\endhead
+\texttt{feature/backend-erick} & 7 &
+  4 clases de pruebas unitarias de servicio, 4 clases de integraci\'on de
+  controlador, configuraci\'on de JaCoCo, correcci\'on del bug de
+  serializaci\'on Jackson/Hibernate. \\
+\texttt{feature/frontend-jimmy} & 8 &
+  \texttt{utils.test.js}, \texttt{api.test.js}, 4 specs de Playwright,
+  configuraci\'on de Jest/Playwright. \\
+\texttt{feature/qa-paul} & 10 &
+  Configuraci\'on de Checkstyle/SpotBugs/ESLint, reportes crudos,
+  \texttt{analisis-estatico.pdf}, \texttt{analisis-owasp.pdf}. \\
+\bottomrule
+\end{longtable}
+
+Todas las ramas se integran hacia \texttt{develop} mediante merge tras
+verificar que la suite de pruebas correspondiente pasa en verde; el
+historial completo es p\'ublico en el repositorio indicado en la car\'atula.
+
+\newpage
+% ============================================================
+\section{Pruebas Unitarias -- Backend}
+
+\textbf{Herramientas:} JUnit 5 + Mockito. \textbf{Ubicaci\'on:}
+\texttt{backend/src/test/java/com/hospital/service/}.
+
+\begin{longtable}{@{}p{5.5cm}p{2cm}p{2cm}p{2cm}p{2cm}@{}}
+\toprule
+\textbf{Clase} & \textbf{Casos felices} & \textbf{Casos l\'imite} & \textbf{Errores} & \textbf{Total} \\
+\midrule
+\endhead
+\texttt{PacienteServiceTest} & 5 & 3 & 4 & 12 \\
+\texttt{DoctorServiceTest} & 5 & 3 & 2 & 10 \\
+\texttt{CitaServiceTest} & 5 & 3 & 3 & 11 \\
+\texttt{HistoriaClinicaServiceTest} & 5 & 2 & 3 & 10 \\
+\midrule
+\textbf{Total} & \textbf{20} & \textbf{11} & \textbf{12} & \textbf{43} \\
+\bottomrule
+\end{longtable}
+
+\textbf{Salida real de \texttt{mvn test} (JDK 17, 19 de julio de 2026):}
+\begin{lstlisting}
+[INFO] Tests run: 43, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+\end{lstlisting}
+
+Cada clase usa mocks de sus repositorios (\texttt{@Mock} + \texttt{@ExtendWith(MockitoExtension.class)})
+y est\'a organizada en tres grupos \texttt{@Nested}: \texttt{CasosFelices},
+\texttt{CasosLimite} y \texttt{ManejoDeErrores}. Varios de los casos l\'imite
+reproducen expl\'icitamente bugs intencionales del c\'odigo base (divisi\'on
+por cero en \texttt{calcularEdadPromedio}, doble booking en citas, inyecci\'on
+SQL en \texttt{buscarPorEspecialidadInsegura}, XSS almacenado sin sanitizar
+en historias cl\'inicas).
+
+\section{Pruebas de Integraci\'on -- Backend}
+
+\textbf{Herramientas:} \texttt{@SpringBootTest} + MockMvc + H2 en memoria.
+\textbf{Ubicaci\'on:} \texttt{backend/src/test/java/com/hospital/controller/}.
+
+\begin{longtable}{@{}p{6cm}p{2.5cm}p{5cm}@{}}
+\toprule
+\textbf{Clase} & \textbf{Tests} & \textbf{Cobertura funcional} \\
+\midrule
+\endhead
+\texttt{PacienteControllerIntegrationTest} & 9 & GET/POST/PUT/DELETE, validaci\'on, b\'usqueda \\
+\texttt{DoctorControllerIntegrationTest} & 9 & GET/POST/PUT/DELETE, inyecci\'on SQL reproducida vía HTTP \\
+\texttt{CitaControllerIntegrationTest} & 11 & GET/POST/PUT/DELETE, doble booking, rango de fechas \\
+\texttt{HistoriaClinicaControllerIntegrationTest} & 9 & GET/POST, XSS almacenado, validaci\'on \\
+\midrule
+\textbf{Total (unitarias + integraci\'on)} & \textbf{81} & \\
+\bottomrule
+\end{longtable}
+
+\textbf{Salida real de \texttt{mvn test} (suite completa):}
+\begin{lstlisting}
+[INFO] Tests run: 81, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+\end{lstlisting}
+
+\textbf{Cobertura de c\'odigo (JaCoCo, generado con \texttt{mvn test jacoco:report}):}
+
+\begin{longtable}{@{}p{4cm}p{2.5cm}p{2.5cm}@{}}
+\toprule
+\textbf{Paquete} & \textbf{Instrucciones} & \textbf{Ramas} \\
+\midrule
+\endhead
+\texttt{com.hospital.service} & 97\% & 64\% \\
+\texttt{com.hospital.controller} & 93\% & n/a \\
+\texttt{com.hospital.model} & 98\% & n/a \\
+\texttt{com.hospital.dto} & 100\% & n/a \\
+\texttt{com.hospital.config} & 100\% & n/a \\
+\texttt{com.hospital.exception} & 74\% & 100\% \\
+\midrule
+\textbf{Total del proyecto} & \textbf{95\%} & \textbf{68\%} \\
+\bottomrule
+\end{longtable}
+
+Reporte HTML completo disponible localmente en
+\texttt{backend/target/site/jacoco/index.html} tras correr
+\texttt{mvn test} (no versionado, es un artefacto de build).
+
+\textbf{Bug real corregido durante esta fase (no intencional, no
+documentado en comentarios del c\'odigo):} \texttt{GET /api/citas} y
+\texttt{GET /api/historias-clinicas} devolv\'ian \texttt{500} de forma
+consistente contra PostgreSQL real, por un
+\texttt{InvalidDefinitionException} de Jackson al serializar proxies
+Hibernate de relaciones \texttt{@ManyToOne(LAZY)}. Se agreg\'o el m\'odulo
+\texttt{jackson-datatype-hibernate6} con \texttt{FORCE\_LAZY\_LOADING} (para
+no ocultar el bug intencional de consultas N+1 que el enunciado pide
+detectar). Detalle completo en el commit
+\texttt{fix: corrige 500 en GET /api/citas...} de \texttt{feature/backend-erick}.
+
+\newpage
+% ============================================================
+\section{Pruebas Unitarias -- Frontend}
+
+\textbf{Herramientas:} Jest 29 + jsdom. \textbf{Ubicaci\'on:}
+\texttt{frontend/js/\_\_tests\_\_/}.
+
+\begin{longtable}{@{}p{5cm}p{2.5cm}p{2.5cm}p{4cm}@{}}
+\toprule
+\textbf{Archivo} & \textbf{Tests} & \textbf{Cobertura} & \textbf{Alcance} \\
+\midrule
+\endhead
+\texttt{utils.test.js} & 32 & 100\% sentencias & Las 8 funciones exportadas de \texttt{utils.js} \\
+\texttt{api.test.js} & 17 & 55\% sentencias & \texttt{apiFetch} + muestra de los 4 m\'odulos de API (fetch mockeado) \\
+\midrule
+\textbf{Total} & \textbf{49} & & \\
+\bottomrule
+\end{longtable}
+
+\textbf{Salida real de \texttt{npx jest --coverage}:}
+\begin{lstlisting}
+Test Suites: 2 passed, 2 total
+Tests:       49 passed, 49 total
+utils.js  |  100 |  90.9 |  100 |  100
+\end{lstlisting}
+
+Para poder importar \texttt{utils.js} y \texttt{api.js} desde Jest (son
+scripts globales sin \texttt{module.exports}, pensados para cargarse con
+\texttt{<script>} en el navegador) se agreg\'o un bloque
+\texttt{if (typeof module !== 'undefined') module.exports = \{...\}} al
+final de cada archivo, sin modificar ninguna funci\'on existente.
+
+\textbf{Bugs reales encontrados al ejecutar los tests} (contradicen los
+comentarios "BUG INTENCIONAL" del propio c\'odigo fuente):
+\begin{itemize}[nosep]
+  \item \texttt{apiFetch} \textbf{pierde el header \texttt{Content-Type}}
+    cuando se le pasan headers personalizados, porque
+    \texttt{\{headers: \{...\}, ...options\}} hace que \texttt{options.headers}
+    sobrescriba por completo el objeto ya fusionado. No estaba documentado.
+  \item El regex de \texttt{validateEmail} \textbf{s\'i rechaza}
+    \texttt{"usuario@dominio"} y \textbf{s\'i acepta} emails con \texttt{+},
+    exactamente lo contrario de lo que afirma el comentario en el c\'odigo
+    fuente.
+\end{itemize}
+
+\section{Pruebas E2E -- Frontend (Playwright)}
+
+\textbf{Herramientas:} Playwright 1.47 (Chromium). \textbf{Ubicaci\'on:}
+\texttt{frontend/e2e/}. Ejecutadas contra el \textbf{stack real completo}
+(PostgreSQL en Docker, backend Spring Boot en \texttt{:8080}, frontend
+est\'atico en \texttt{:3000}), no contra mocks.
+
+\begin{longtable}{@{}p{5cm}p{2.5cm}p{6.5cm}@{}}
+\toprule
+\textbf{Archivo} & \textbf{Tests} & \textbf{Flujo cubierto} \\
+\midrule
+\endhead
+\texttt{pacientes.spec.js} & 3 & CRUD completo, validaci\'on HTML5, b\'usqueda \\
+\texttt{doctores.spec.js} & 3 & CRUD completo, especialidad opcional (bug), b\'usqueda \\
+\texttt{citas.spec.js} & 4 & Creaci\'on/edici\'on, doble booking (bug), filtro por estado \\
+\texttt{historias.spec.js} & 3 & Creaci\'on + consulta con "Ver", doctor opcional, XSS almacenado (bug) \\
+\midrule
+\textbf{Total} & \textbf{13} & \\
+\bottomrule
+\end{longtable}
+
+\textbf{Salida real de \texttt{npx playwright test}:}
+\begin{lstlisting}
+Running 13 tests using 1 worker
+  13 passed (10.3s)
+\end{lstlisting}
+
+Reporte HTML con capturas (generado autom\'aticamente en cada falla, y
+disponible siempre en \texttt{frontend/playwright-report/} tras correr la
+suite) mediante \texttt{npx playwright show-report}.
+
+\textbf{Hallazgo relevante encontrado durante la ejecuci\'on:} el DELETE de
+pacientes y doctores \textbf{s\'i elimina el registro en el backend}
+(\texttt{200} con cuerpo vac\'io), pero \texttt{apiFetch} intenta parsear ese
+cuerpo vac\'io como JSON y lanza una excepci\'on; la UI muestra "Error al
+eliminar" y \textbf{no refresca la tabla}, dejando una fila fantasma visible
+aunque el registro ya no exista en la base de datos. Confirmado
+recargando la p\'agina dentro del mismo test.
+
+\newpage
+% ============================================================
+\section{An\'alisis Est\'atico de C\'odigo}
+
+Herramientas configuradas y ejecutadas: \textbf{Checkstyle} (Google Java
+Style), \textbf{SpotBugs + FindSecBugs} (\texttt{effort=Max},
+\texttt{threshold=Low}) y \textbf{ESLint} (\texttt{eslint:recommended}).
+
+\begin{longtable}{@{}p{4cm}p{3cm}p{3cm}p{3cm}@{}}
+\toprule
+\textbf{Herramienta} & \textbf{Hallazgos} & \textbf{M\'as frecuente} & \textbf{Reporte} \\
+\midrule
+\endhead
+Checkstyle & 937 & Indentaci\'on (553) & \texttt{checkstyle-report.txt} \\
+SpotBugs + FindSecBugs & 37 & \texttt{SPRING\_ENDPOINT} (28, informativo) & \texttt{spotbugs-report.txt} \\
+ESLint & 4 (warnings) & \texttt{no-unused-vars} (falso positivo estructural) & \texttt{eslint-report.txt} \\
+\bottomrule
+\end{longtable}
+
+El informe completo, con la clasificaci\'on por severidad, el an\'alisis
+detallado de los hallazgos m\'as relevantes (incluyendo un \textbf{falso
+negativo confirmado}: FindSecBugs no detect\'o la inyecci\'on SQL real de
+\texttt{DoctorService}) y la configuraci\'on exacta de cada plugin, est\'a en
+\href{run:../../informes/analisis-estatico.pdf}{\texttt{informes/analisis-estatico.pdf}}.
+Los reportes crudos (\texttt{.txt}/\texttt{.xml}/\texttt{.json}) est\'an en
+\texttt{docs/informes/}.
+
+\section{An\'alisis de Seguridad -- OWASP Top 10}
+
+Se identificaron \textbf{11 hallazgos}, todos verificados de forma
+reproducible (petici\'on HTTP real contra el backend en ejecuci\'on, o test
+automatizado en verde), mapeados a 6 categor\'ias del OWASP Top 10 (2021):
+
+\begin{longtable}{@{}p{0.6cm}p{6.5cm}p{3cm}p{1.8cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Hallazgo} & \textbf{Categor\'ia} & \textbf{Riesgo} \\
+\midrule
+\endhead
+1 & Ausencia total de autenticaci\'on/autorizaci\'on & A01 & Alto \\
+2 & CORS permisivo (\texttt{origins="*"}) & A01 & Medio \\
+3 & Credenciales de BD en texto plano en el repositorio & A02 & Alto \\
+4 & Inyecci\'on SQL real (b\'usqueda de doctores) & A03 & Alto \\
+5 & XSS almacenado en historias cl\'inicas & A03 & Alto \\
+6 & XSS por \texttt{innerHTML} en Pacientes/Doctores/Citas & A03 & Medio \\
+7 & XSS en \texttt{showAlert()} (compartido por todos los m\'odulos) & A03 & Medio \\
+8 & Componentes desactualizados (Spring Boot 3.3.0 $\to$ 4.1.0 disponible) & A06 & Medio \\
+9 & C\'odigos HTTP incorrectos (200 en vez de 404/201/204) & A05 & Medio \\
+10 & Exposici\'on de stack traces completos en errores 500 & A05 & Medio \\
+11 & Sin logging del servidor ante errores no controlados & A09 & Alto \\
+\bottomrule
+\end{longtable}
+
+Cada hallazgo incluye, en el informe completo, ubicaci\'on exacta
+(archivo:l\'inea), impacto, evidencia de reproducci\'on y mitigaci\'on
+recomendada:
+\href{run:../../informes/analisis-owasp.pdf}{\texttt{informes/analisis-owasp.pdf}}.
+
+\newpage
+% ============================================================
+\section{Resumen consolidado de ejecuci\'on}
+
+\begin{longtable}{@{}p{6cm}p{2.5cm}p{2.5cm}p{3cm}@{}}
+\toprule
+\textbf{Suite} & \textbf{Tests} & \textbf{Resultado} & \textbf{Comando} \\
+\midrule
+\endhead
+Unitarias backend (JUnit 5 + Mockito) & 43 & 0 fallos & \texttt{mvn test -Dtest=*ServiceTest} \\
+Integraci\'on backend (SpringBootTest + H2) & 38 (81 total con unitarias) & 0 fallos & \texttt{mvn test -Dtest=*ControllerIntegrationTest} \\
+Unitarias frontend (Jest) & 49 & 0 fallos & \texttt{npx jest} \\
+E2E frontend (Playwright) & 13 & 0 fallos & \texttt{npx playwright test} \\
+\midrule
+\textbf{Total pruebas automatizadas} & \textbf{143} & \textbf{0 fallos} & \\
+\bottomrule
+\end{longtable}
+
+\section{Bugs reales encontrados no documentados en el enunciado}
+
+Adem\'as de los bugs intencionales del enunciado (que las pruebas de las
+secciones anteriores reproducen sistem\'aticamente), el equipo encontr\'o y
+document\'o los siguientes defectos \textbf{no anunciados} en los
+comentarios del c\'odigo base:
+
+\begin{enumerate}[nosep]
+  \item \texttt{GET /api/citas} y \texttt{GET /api/historias-clinicas}
+    romp\'ian por completo (500) contra PostgreSQL real -- corregido (ver
+    Secci\'on 5).
+  \item \texttt{apiFetch} pierde el header \texttt{Content-Type} al recibir
+    headers personalizados (bug de JavaScript, no mencionado en los
+    comentarios de \texttt{api.js}).
+  \item El comentario "BUG INTENCIONAL" de \texttt{validateEmail} en
+    \texttt{utils.js} describe un comportamiento que el regex real no
+    tiene (verificado con Node.js y con tests).
+  \item El comentario "BUG INTENCIONAL" de
+    \texttt{PacienteRepository.buscarPorNombre} afirma que la query es
+    vulnerable a inyecci\'on SQL, pero usa un par\'ametro con \emph{binding}
+    (\texttt{:nombre}) correctamente parametrizado -- no es explotable, a
+    diferencia del m\'etodo de \texttt{DoctorService} que s\'i lo es.
+  \item El DELETE de pacientes/doctores deja una fila fantasma en la UI por
+    el manejo incorrecto de respuestas con cuerpo vac\'io en \texttt{apiFetch}
+    (ver Secci\'on 8).
+\end{enumerate}
+
+\section{Estructura de entregables en el repositorio}
+
+\begin{lstlisting}
+hospital-management/
+|-- backend/src/test/java/com/hospital/
+|   |-- service/              (4 clases, 43 tests)
+|   `-- controller/            (4 clases, integracion con H2)
+|-- frontend/
+|   |-- js/__tests__/          (utils.test.js, api.test.js)
+|   `-- e2e/                   (4 specs de Playwright)
+|-- informes/
+|   |-- analisis-estatico.pdf
+|   `-- analisis-owasp.pdf
+|-- docs/
+|   |-- informes/              (reportes crudos: checkstyle, spotbugs, eslint)
+|   `-- informe-final/         (este documento)
+|-- .claude/skills/team-git-workflow/SKILL.md
+|-- CONTRIBUTING.md
+`-- .github/PULL_REQUEST_TEMPLATE.md
+\end{lstlisting}
+
+\section{Reproducibilidad}
+
+Todos los resultados de este informe pueden reproducirse con:
+
+\begin{lstlisting}[language=bash]
+# Base de datos
+docker compose up -d
+
+# Backend (requiere JDK 17)
+cd backend && mvn test                 # 81 tests
+mvn spotbugs:spotbugs && mvn checkstyle:check
+
+# Frontend
+cd frontend && npm install
+npx jest --coverage                    # 49 tests
+npx eslint "js/**/*.js" "e2e/**/*.js"
+
+# E2E (requiere backend + frontend + DB arriba)
+npx playwright install chromium
+npx playwright test                    # 13 tests
+\end{lstlisting}
+
+\end{document}
