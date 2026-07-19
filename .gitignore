@@ -11,3 +11,6 @@ application-local.properties
 *.iml
 playwright-report/
 test-results/
+*.aux
+*.out
+*.toc

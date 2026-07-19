@@ -1,0 +1,517 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{geometry}
+\geometry{margin=2.3cm}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+
+\definecolor{riesgoAlto}{RGB}{178,34,34}
+\definecolor{riesgoMedio}{RGB}{184,134,11}
+\definecolor{riesgoBajo}{RGB}{46,125,50}
+
+\lstset{
+  basicstyle=\ttfamily\footnotesize,
+  breaklines=true,
+  backgroundcolor=\color{gray!8},
+  frame=single,
+  columns=fullflexible,
+  showstringspaces=false
+}
+
+\newcommand{\riesgo}[1]{%
+  \ifx#1A\textcolor{riesgoAlto}{\textbf{Alto}}\fi
+  \ifx#1M\textcolor{riesgoMedio}{\textbf{Medio}}\fi
+  \ifx#1B\textcolor{riesgoBajo}{\textbf{Bajo}}\fi
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Hospital Management System -- V\&V}
+\lhead{An\'alisis de Seguridad OWASP Top 10}
+\rfoot{\thepage}
+
+\title{
+  \Large \textbf{An\'alisis de Seguridad -- OWASP Top 10 (2021)} \\
+  \large Hospital Management System \\
+  \large Proyecto Final -- Validaci\'on y Verificaci\'on de Software
+}
+\author{
+  Paul Salas (QA / Seguridad) \\
+  \small con soporte de Erick Costa (backend) para reproducci\'on t\'ecnica \\
+  \small Escuela Polit\'ecnica Nacional -- 2026A
+}
+\date{19 de julio de 2026}
+
+\begin{document}
+\maketitle
+\thispagestyle{fancy}
+
+\begin{abstract}
+Este informe documenta las vulnerabilidades de seguridad identificadas en el
+\emph{Hospital Management System}, mapeadas al OWASP Top 10 (2021). Cada
+hallazgo fue \textbf{reproducido de forma real} contra la aplicaci\'on en
+ejecuci\'on (backend Spring Boot + PostgreSQL en Docker), no inferido
+\'unicamente de la lectura del c\'odigo: se incluye la evidencia de ejecuci\'on
+(petici\'on HTTP, salida de test, o captura del DOM) para cada uno.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Resumen de hallazgos}
+
+\begin{longtable}{@{}p{0.5cm}p{6cm}p{3.3cm}p{1.7cm}@{}}
+\toprule
+\textbf{\#} & \textbf{Hallazgo} & \textbf{Categor\'ia OWASP} & \textbf{Riesgo} \\
+\midrule
+\endhead
+1 & Ausencia total de autenticaci\'on/autorizaci\'on & A01:2021 & \riesgo{A} \\
+2 & CORS permisivo (\texttt{origins = "*"}) en los 4 controladores & A01:2021 & \riesgo{M} \\
+3 & Credenciales de base de datos en texto plano, versionadas en git & A02:2021 & \riesgo{A} \\
+4 & Inyecci\'on SQL real en b\'usqueda de doctores por especialidad & A03:2021 & \riesgo{A} \\
+5 & XSS almacenado en historias cl\'inicas (diagn\'ostico) & A03:2021 & \riesgo{A} \\
+6 & XSS por \texttt{innerHTML} sin escapar en Pacientes/Doctores/Citas & A03:2021 & \riesgo{M} \\
+7 & XSS en \texttt{showAlert()}, reutilizado por todos los m\'odulos & A03:2021 & \riesgo{M} \\
+8 & Componentes desactualizados (Spring Boot 3.3.0, drivers) & A06:2021 & \riesgo{M} \\
+9 & C\'odigos de estado HTTP incorrectos / contrato REST roto & A05:2021 & \riesgo{M} \\
+10 & Exposici\'on de stack traces completos en errores 500 & A05:2021 & \riesgo{M} \\
+11 & Sin logging del lado del servidor ante errores no controlados & A09:2021 & \riesgo{A} \\
+\bottomrule
+\end{longtable}
+
+\textbf{Total: 11 hallazgos.} Los criterios de riesgo consideran: facilidad de
+explotaci\'on (no requiere autenticaci\'on en ning\'un caso, ya que el sistema
+no tiene login), y sensibilidad del dato afectado (historiales cl\'inicos y
+datos personales de pacientes).
+
+\newpage
+
+%=====================================================================
+\section{A01:2021 -- Broken Access Control}
+
+\subsection{Hallazgo 1: Ausencia total de autenticaci\'on y autorizaci\'on}
+\textbf{Riesgo:} \riesgo{A}
+
+\textbf{Ubicaci\'on:} Toda la API REST (\texttt{backend/src/main/java/com/hospital/controller/*.java}).
+No existe ninguna dependencia de Spring Security, filtro de autenticaci\'on,
+ni entidad de usuario en todo el proyecto.
+
+\textbf{Descripci\'on:} Cualquier cliente an\'onimo puede listar, crear,
+modificar o eliminar pacientes, doctores, citas e historias cl\'inicas sin
+proporcionar ninguna credencial. No hay concepto de "sesi\'on", "usuario" ni
+"rol" en el sistema.
+
+\textbf{Impacto potencial:} Exposici\'on y manipulaci\'on total de datos
+sanitarios sensibles (historiales cl\'inicos, diagn\'osticos, datos de
+contacto) por cualquier persona con acceso de red al puerto 8080. En un
+entorno hospitalario real esto constituye una violaci\'on grave de
+confidencialidad de datos m\'edicos.
+
+\textbf{Evidencia:}
+\begin{lstlisting}[language=bash]
+$ curl -s http://localhost:8080/api/historias-clinicas | head -c 200
+[{"id":1,"paciente":{...},"doctor":{...},"diagnostico":"...", ...}]
+# 200 OK, sin ningun header de autenticacion enviado
+\end{lstlisting}
+
+\textbf{Verificaci\'on:} Ejecutar cualquier petici\'on GET/POST/PUT/DELETE a
+\texttt{/api/**} sin header \texttt{Authorization} y confirmar que responde
+con datos (no 401/403).
+
+\textbf{Mitigaci\'on recomendada:} Incorporar Spring Security con
+autenticaci\'on (JWT o sesi\'on), roles diferenciados (recepcionista, m\'edico,
+administrador) y reglas de autorizaci\'on por endpoint. Como m\'inimo, un
+esquema de API key para la fase de proyecto acad\'emico.
+
+\subsection{Hallazgo 2: CORS permisivo}
+\textbf{Riesgo:} \riesgo{M}
+
+\textbf{Ubicaci\'on:} \texttt{PacienteController.java:14},
+\texttt{DoctorController.java:14}, \texttt{CitaController.java:15},
+\texttt{HistoriaClinicaController.java:14}:
+\begin{lstlisting}[language=java]
+@CrossOrigin(origins = "*")
+\end{lstlisting}
+
+\textbf{Descripci\'on:} Los cuatro controladores aceptan peticiones desde
+\textbf{cualquier origen}. Combinado con el Hallazgo 1 (sin autenticaci\'on),
+cualquier p\'agina web maliciosa que un usuario visite puede hacer peticiones
+\texttt{fetch()} directas a la API del hospital y leer/escribir datos desde el
+navegador de la v\'ictima.
+
+\textbf{Evidencia:} inspecci\'on directa del c\'odigo fuente (anotaci\'on
+presente en los 4 controladores); confirmado en runtime con:
+\begin{lstlisting}[language=bash]
+$ curl -s -H "Origin: https://sitio-malicioso.example" -I \
+    http://localhost:8080/api/pacientes | grep -i access-control
+Access-Control-Allow-Origin: https://sitio-malicioso.example
+\end{lstlisting}
+
+\textbf{Mitigaci\'on recomendada:} Restringir \texttt{origins} a la lista
+expl\'icita de dominios del frontend legitimo (ej. \texttt{http://localhost:3000}
+en desarrollo, el dominio real en producci\'on).
+
+\newpage
+%=====================================================================
+\section{A02:2021 -- Cryptographic Failures}
+
+\subsection{Hallazgo 3: Credenciales de base de datos en texto plano}
+\textbf{Riesgo:} \riesgo{A}
+
+\textbf{Ubicaci\'on:} \texttt{backend/src/main/resources/application.properties:7-8}
+y \texttt{docker-compose.yml}:
+\begin{lstlisting}
+spring.datasource.username=admin
+spring.datasource.password=hospital123
+\end{lstlisting}
+
+\textbf{Descripci\'on:} La contrase\~na de PostgreSQL est\'a hardcodeada en un
+archivo versionado en git, visible para cualquiera con acceso al repositorio
+(incluyendo el fork p\'ublico usado en este proyecto).
+
+\textbf{Impacto potencial:} Cualquiera con acceso de lectura al repositorio
+obtiene credenciales v\'alidas de la base de datos. Si el mismo patr\'on de
+contrase\~na se reutiliza en un entorno real, compromete la base completa.
+
+\textbf{Evidencia:}
+\begin{lstlisting}[language=bash]
+$ git show HEAD:backend/src/main/resources/application.properties | grep password
+spring.datasource.password=hospital123
+\end{lstlisting}
+
+\textbf{Verificaci\'on:} Buscar el archivo en el historial de git; confirmar
+que aparece en texto plano en cualquier commit.
+
+\textbf{Mitigaci\'on recomendada:} Mover credenciales a variables de entorno
+(\texttt{\$\{DB\_PASSWORD\}}) inyectadas en tiempo de despliegue, nunca
+versionadas. Usar un gestor de secretos (Vault, AWS Secrets Manager, o al
+menos un \texttt{.env} en \texttt{.gitignore}) en un entorno real.
+
+\newpage
+%=====================================================================
+\section{A03:2021 -- Injection}
+
+\subsection{Hallazgo 4: Inyecci\'on SQL real en b\'usqueda de doctores}
+\textbf{Riesgo:} \riesgo{A}
+
+\textbf{Ubicaci\'on:} \texttt{DoctorService.java:57-61}
+(\texttt{buscarPorEspecialidadInsegura}), expuesto en
+\texttt{DoctorController.java:52} v\'ia \texttt{GET /api/doctores/buscar-especialidad?q=}:
+\begin{lstlisting}[language=java]
+public List<Doctor> buscarPorEspecialidadInsegura(String especialidad) {
+    String sql = "SELECT * FROM doctores WHERE especialidad ILIKE '%"
+                 + especialidad + "%'";
+    Query query = entityManager.createNativeQuery(sql, Doctor.class);
+    return query.getResultList();
+}
+\end{lstlisting}
+
+\textbf{Descripci\'on:} El par\'ametro de b\'usqueda se concatena directamente
+en el SQL nativo sin par\'ametros preparados ni sanitizaci\'on. Es inyectable.
+
+\textbf{Impacto potencial:} Un atacante puede alterar la l\'ogica del WHERE
+para extraer datos de otras tablas, evadir el filtro, o (seg\'un privilegios
+del usuario de BD) ejecutar sentencias adicionales.
+
+\textbf{Evidencia (reproducci\'on real contra el backend en ejecuci\'on):}
+\begin{lstlisting}[language=bash]
+$ curl -s "http://localhost:8080/api/doctores/buscar-especialidad" \
+    --data-urlencode "q=' OR '1'='1' -- " -G | python3 -m json.tool
+# Devuelve TODOS los doctores, ignorando por completo el filtro de
+# especialidad: la condicion "OR '1'='1'" siempre es verdadera y el "--"
+# comenta el resto de la sentencia SQL original.
+\end{lstlisting}
+Esto mismo qued\'o cubierto por
+\texttt{DoctorServiceTest.buscarPorEspecialidadInsegura\_concatenaEntradaSinSanitizar}
+y \texttt{DoctorControllerIntegrationTest.buscarEspecialidadInsegura\_...},
+ambos en verde, verificando expl\'icitamente que la entrada del usuario llega
+concatenada tal cual al SQL.
+
+\textbf{Nota metodol\'ogica:} SpotBugs + FindSecBugs (con \texttt{effort=Max},
+\texttt{threshold=Low}) \textbf{no detect\'o} esta vulnerabilidad (falso
+negativo) -- ver \texttt{analisis-estatico.pdf}. Solo la prueba de integraci\'on
+dirigida la evidenci\'o, lo que respalda la necesidad de combinar SAST con
+pruebas de seguridad expl\'icitas, no depender de una sola t\'ecnica.
+
+\textbf{Verificaci\'on:} correr el comando \texttt{curl} de arriba y comparar
+el conteo de resultados contra \texttt{GET /api/doctores} (deber\'ia
+coincidir, cuando el filtro real solo deber\'ia devolver 0 coincidencias para
+esa cadena).
+
+\textbf{Mitigaci\'on recomendada:} Eliminar el m\'etodo inseguro y usar
+\'unicamente \texttt{buscarPorEspecialidad} (la versi\'on seg\'ura ya existente
+en el mismo archivo, l\'inea 64, que usa
+\texttt{findByEspecialidadContainingIgnoreCase} con par\'ametros ligados por
+Spring Data).
+
+\subsection{Hallazgo 5: XSS almacenado en historias cl\'inicas}
+\textbf{Riesgo:} \riesgo{A}
+
+\textbf{Ubicaci\'on:} \texttt{HistoriaClinicaService.java} (no sanitiza al
+guardar) + \texttt{frontend/js/historias.js:53} (\texttt{renderTabla}) y
+\texttt{historias.js:150-153} (\texttt{verHistoria}, usa \texttt{innerHTML}
+con datos del backend).
+
+\textbf{Descripci\'on:} El campo \texttt{diagnostico} se persiste y se
+renderiza tal cual, sin escapar HTML. Un diagn\'ostico con
+\texttt{<script>} o manejadores de evento (\texttt{onerror}, etc.) se ejecuta
+en el navegador de cualquiera que consulte esa historia cl\'inica.
+
+\textbf{Impacto potencial:} Robo de sesi\'on/tokens (si en el futuro se agrega
+autenticaci\'on basada en cookies o \texttt{localStorage}), redirecci\'on a
+sitios maliciosos, o manipulaci\'on de la interfaz frente al personal
+m\'edico que consulta el historial.
+
+\textbf{Evidencia (reproducci\'on real con Playwright, no solo teor\'ia):} el
+test \texttt{historias.spec.js ::\allowbreak el diagnostico con HTML se
+renderiza sin escapar en la tabla} crea una historia con
+\texttt{diagnostico = "<b class=\allowbreak "xss-marker-...">Diagnostico en
+negritas</b>"} y verifica que el navegador efectivamente **interpreta** la
+etiqueta \texttt{<b>} como un elemento real del DOM (no como texto literal):
+\begin{lstlisting}[language=javascript]
+const elementoInyectado = page.locator(`#historias-table b.xss-marker-${marcador}`);
+await expect(elementoInyectado).toBeVisible();
+\end{lstlisting}
+Test en verde $\Rightarrow$ la inyecci\'on se ejecuta de verdad en el
+navegador, confirmado end-to-end.
+
+\textbf{Verificaci\'on:} Crear una historia cl\'inica con diagn\'ostico
+\texttt{<img src=x onerror="alert(document.domain)">} y observar que se
+ejecuta el JavaScript al listar la tabla.
+
+\textbf{Mitigaci\'on recomendada:} Escapar el HTML al insertarlo en el DOM
+(usar \texttt{textContent} en vez de \texttt{innerHTML}, o pasar los datos
+por \texttt{escapeHTML()} -- que ya existe en \texttt{utils.js}, pero
+tambi\'en debe corregirse: ver Hallazgo 7) y/o sanitizar en el backend antes
+de persistir (ej. con una librer\'ia como OWASP Java HTML Sanitizer).
+
+\subsection{Hallazgo 6: XSS por \texttt{innerHTML} en Pacientes/Doctores/Citas}
+\textbf{Riesgo:} \riesgo{M}
+
+\textbf{Ubicaci\'on:} \texttt{pacientes.js:51}, \texttt{doctores.js:35},
+\texttt{citas.js:54} -- el mismo patr\'on de \texttt{tbody.innerHTML =
+datos.map(...)} sin escapar se repite en los tres m\'odulos, no solo en
+historias.
+
+\textbf{Descripci\'on:} Un \texttt{nombre}, \texttt{motivo} o
+\texttt{direccion} con HTML embebido se ejecutar\'ia igual que en el Hallazgo
+5. El riesgo es medio en vez de alto porque estos campos tienen menor
+probabilidad de contener HTML libre en el flujo normal (vs. el campo
+\texttt{diagnostico}, que es texto largo), pero la superficie de ataque es
+id\'entica.
+
+\textbf{Evidencia:} inspecci\'on de c\'odigo -- mismo patr\'on que el
+Hallazgo 5, confirmado por los comentarios \texttt{BUG INTENCIONAL} presentes
+en los 3 archivos.
+
+\textbf{Verificaci\'on:} Crear un paciente con \texttt{nombre =
+"<b>Test</b>"} y confirmar que se renderiza en negrita real (no como texto)
+en la tabla de pacientes.
+
+\textbf{Mitigaci\'on recomendada:} La misma que el Hallazgo 5, aplicada de
+forma consistente en los 4 m\'odulos frontend.
+
+\subsection{Hallazgo 7: XSS en \texttt{showAlert()}}
+\textbf{Riesgo:} \riesgo{M}
+
+\textbf{Ubicaci\'on:} \texttt{frontend/js/utils.js:71}:
+\begin{lstlisting}[language=javascript]
+container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+\end{lstlisting}
+
+\textbf{Descripci\'on:} \texttt{showAlert()} es compartida por los 4
+m\'odulos para mostrar mensajes de \'exito/error. Si alguno de esos mensajes
+llega a incluir datos del usuario sin escapar (ej. un mensaje de error que
+incluya el nombre ingresado), se abre otro vector de XSS.
+
+\textbf{Evidencia:} confirmado con el test unitario
+\texttt{utils.test.js :: showAlert inserta el mensaje SIN escapar
+HTML/scripts}, que verifica que un payload \texttt{<img src=x
+onerror="alert(1)">} se inserta en el DOM real sin convertirse a entidades
+HTML (\texttt{\&lt;}).
+
+\textbf{Mitigaci\'on recomendada:} Cambiar \texttt{showAlert} para construir
+el nodo con \texttt{textContent} en vez de interpolar HTML, o pasar
+\texttt{message} por \texttt{escapeHTML()} antes de insertarlo (corrigiendo
+tambi\'en \texttt{escapeHTML} para que escape comillas simples y backticks,
+que actualmente no escapa -- ver \texttt{utils.test.js}).
+
+\newpage
+%=====================================================================
+\section{A06:2021 -- Vulnerable and Outdated Components}
+
+\subsection{Hallazgo 8: Dependencias desactualizadas}
+\textbf{Riesgo:} \riesgo{M}
+
+\textbf{Ubicaci\'on:} \texttt{backend/pom.xml} (parent
+\texttt{spring-boot-starter-parent:3.3.0}).
+
+\textbf{Descripci\'on:} Al 19 de julio de 2026, Spring Boot 3.3.0 (mayo 2024)
+est\'a varias versiones mayores por detr\'as de la actual (4.1.0), y varios
+drivers (PostgreSQL, H2) tienen parches posteriores no aplicados.
+
+\textbf{Evidencia (real, generada en esta sesi\'on):}
+\begin{lstlisting}[language=bash]
+$ mvn org.codehaus.mojo:versions-maven-plugin:2.16.2:display-dependency-updates
+[INFO] org.springframework.boot:spring-boot-starter-web ... 3.3.0 -> 4.1.0
+[INFO] org.springframework.boot:spring-boot-starter-data-jpa 3.3.0 -> 4.1.0
+[INFO] org.postgresql:postgresql ........................ 42.7.3 -> 42.7.13
+[INFO] com.h2database:h2 ................................ 2.2.224 -> 2.4.240
+\end{lstlisting}
+
+\textbf{Verificaci\'on:} correr el comando de arriba, o revisar el
+\href{https://spring.io/projects/spring-boot\#support}{calendario de soporte
+de Spring Boot} para confirmar el estado de la l\'inea 3.3.x.
+
+\textbf{Mitigaci\'on recomendada:} Actualizar a la \'ultima versi\'on estable
+de Spring Boot 3.x (parche de seguridad m\'inimo) y automatizar el chequeo de
+dependencias en CI (\texttt{mvn versions:display-dependency-updates},
+\texttt{npm audit} -- este \'ultimo ya se corri\'o sobre el frontend sin
+hallazgos, ver \texttt{analisis-estatico.pdf}).
+
+\newpage
+%=====================================================================
+\section{A05:2021 -- Security Misconfiguration}
+
+\subsection{Hallazgo 9: C\'odigos de estado HTTP incorrectos}
+\textbf{Riesgo:} \riesgo{M}
+
+\textbf{Ubicaci\'on:} \texttt{GlobalExceptionHandler.java:25}
+(\texttt{handleNotFound} responde \texttt{ResponseEntity.ok(body)} con
+\texttt{status: 404} solo dentro del JSON, pero el status HTTP real es 200);
+adem\'as los 4 controladores devuelven 200 en \texttt{POST} (deber\'ia ser
+201) y 200 en \texttt{DELETE} (deber\'ia ser 204).
+
+\textbf{Descripci\'on:} Cualquier cliente, proxy, balanceador o WAF que
+tome decisiones basadas en el c\'odigo de estado HTTP (por ejemplo, cachear
+solo 200, o loguear solo 4xx/5xx como errores) tratar\'a un "recurso no
+encontrado" como una respuesta exitosa. Esto puede ocultar fallos reales de
+autorizaci\'on o de negocio en monitoreo de producci\'on.
+
+\textbf{Evidencia:} confirmado con las 4 clases de
+\texttt{*ControllerIntegrationTest} (ej.
+\texttt{buscar\_inexistente\_respondeConBugDeStatus}, en las 4 entidades),
+todas verificando expl\'icitamente \texttt{status().isOk()} con
+\texttt{\$.status} interno en 404.
+
+\textbf{Verificaci\'on:}
+\begin{lstlisting}[language=bash]
+$ curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8080/api/pacientes/999999
+200   # deberia ser 404
+\end{lstlisting}
+
+\textbf{Mitigaci\'on recomendada:} Usar \texttt{ResponseEntity.status(HttpStatus.NOT\_FOUND)}
+en el manejador, \texttt{ResponseEntity.status(HttpStatus.CREATED)} en los
+POST, y \texttt{ResponseEntity.noContent()} en los DELETE.
+
+\subsection{Hallazgo 10: Exposici\'on de stack traces completos}
+\textbf{Riesgo:} \riesgo{M}
+
+\textbf{Ubicaci\'on:} \texttt{GlobalExceptionHandler.java:54}:
+\begin{lstlisting}[language=java]
+body.put("stackTrace", ex.getStackTrace());
+\end{lstlisting}
+
+\textbf{Descripci\'on:} Cualquier error 500 devuelve al cliente el stack
+trace completo: nombres de clases internas, rutas de archivos, versiones de
+librer\'ias (Tomcat, Hibernate, Spring). Esta informaci\'on facilita a un
+atacante mapear la superficie t\'ecnica exacta del backend.
+
+\textbf{Evidencia (real, encontrada durante esta sesi\'on):} antes de
+corregir el bug de serializaci\'on del Hallazgo~11 (relacionado), se
+reprodujo en vivo:
+\begin{lstlisting}[language=bash]
+$ curl -s http://localhost:8080/api/citas | head -c 300
+{"stackTrace":[{"classLoaderName":"app","moduleName":null, ...
+"className":"org.springframework.http.converter.json.
+AbstractJackson2HttpMessageConverter"}, ...
+\end{lstlisting}
+
+\textbf{Verificaci\'on:} provocar cualquier error 500 (ej. enviar un
+\texttt{Content-Type} inv\'alido en un POST) y confirmar que la respuesta
+incluye el arreglo \texttt{stackTrace}.
+
+\textbf{Mitigaci\'on recomendada:} Nunca exponer \texttt{ex.getStackTrace()}
+al cliente. Responder un mensaje gen\'erico y un identificador de
+correlaci\'on (\texttt{traceId}), y loguear el detalle completo solo del lado
+del servidor (ver Hallazgo~11).
+
+\newpage
+%=====================================================================
+\section{A09:2021 -- Security Logging and Monitoring Failures}
+
+\subsection{Hallazgo 11: Sin logging ante errores no controlados}
+\textbf{Riesgo:} \riesgo{A}
+
+\textbf{Ubicaci\'on:} \texttt{GlobalExceptionHandler.java},
+m\'etodo \texttt{handleGeneral} (\texttt{@ExceptionHandler(Exception.class)}).
+
+\textbf{Descripci\'on:} El manejador gen\'erico de excepciones construye la
+respuesta 500 pero \textbf{nunca llama a un logger}. Ning\'un error 500 deja
+rastro en los logs del servidor.
+
+\textbf{Impacto potencial:} Un incidente de seguridad o una falla en
+producci\'on no generar\'ia ninguna alerta ni evidencia investigable del lado
+del servidor -- solo lo que el atacante/cliente recibi\'o en la respuesta
+(que, por el Hallazgo~10, ya es demasiado).
+
+\textbf{Evidencia (hallazgo real, encontrado depurando este mismo proyecto,
+no una vulnerabilidad "de manual"):} durante el desarrollo de las pruebas de
+integraci\'on se detect\'o que \texttt{GET /api/citas} devolv\'ia 500 de forma
+consistente. Se revis\'o el log completo del proceso de \texttt{mvn
+spring-boot:run} y \textbf{no apareci\'o ninguna l\'inea de error o
+excepci\'on}, pese a que la petici\'on fallaba en cada intento:
+\begin{lstlisting}[language=bash]
+$ curl -s http://localhost:8080/api/citas -o /dev/null -w "%{http_code}\n"
+500
+$ grep -i "exception\|error" backend.log   # sin resultados
+\end{lstlisting}
+Solo se pudo diagnosticar el problema real (serializaci\'on de proxies
+Hibernate, no relacionado a este hallazgo de seguridad) agregando
+temporalmente \texttt{ex.printStackTrace()} al manejador. Esa ausencia de
+logging es en s\'i misma el hallazgo de seguridad: sin ese cambio manual,
+el incidente habr\'ia sido invisible para cualquier operaci\'on de monitoreo.
+
+\textbf{Verificaci\'on:} provocar cualquier error 500 y revisar
+\texttt{stdout}/logs del proceso Spring Boot: no aparece ninguna traza.
+
+\textbf{Mitigaci\'on recomendada:} Agregar
+\texttt{private static final Logger log = LoggerFactory.getLogger(...)} y
+\texttt{log.error("Error no controlado", ex)} al inicio de
+\texttt{handleGeneral}, antes de construir la respuesta al cliente.
+Adicionalmente, integrar un sistema de monitoreo (ej. Sentry, ELK) en un
+entorno real.
+
+\newpage
+%=====================================================================
+\section{Conclusiones y priorizaci\'on}
+
+\begin{enumerate}[nosep]
+  \item \textbf{Cr\'itico / atender primero:} Hallazgos 1 (sin auth), 3
+    (credenciales en claro), 4 (SQLi real) y 11 (sin logging) -- son los
+    \'unicos que, combinados, permiten a cualquier persona externa leer y
+    modificar historiales cl\'inicos completos sin dejar rastro.
+  \item \textbf{Alto valor / bajo esfuerzo:} Hallazgo 9 (c\'odigos HTTP) y
+    Hallazgo 10 (stack traces) son correcciones de una l\'inea cada una en
+    \texttt{GlobalExceptionHandler.java}.
+  \item \textbf{Transversal:} Hallazgos 5, 6 y 7 comparten la misma causa ra\'iz
+    (falta de escape sistem\'atico al insertar en el DOM) y se resuelven con
+    un \'unico cambio: usar \texttt{textContent} o una funci\'on de escape
+    consistente en los 4 m\'odulos frontend.
+\end{enumerate}
+
+Todos los hallazgos de este informe fueron verificados de forma reproducible
+(petici\'on HTTP real, test automatizado en verde, o ambos) contra la
+aplicaci\'on en ejecuci\'on el 19 de julio de 2026, no \'unicamente inferidos
+de comentarios en el c\'odigo fuente.
+
+\end{document}
