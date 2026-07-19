@@ -124,3 +124,19 @@ function localToISO(localDateTime) {
     // En Ecuador (GMT-5) hay una diferencia de 5 horas
     return new Date(localDateTime).toISOString();
 }
+
+// Export CommonJS solo para pruebas con Jest (Node). En el navegador, donde no
+// existe `module`, este bloque no se ejecuta y las funciones siguen siendo
+// globales como hasta ahora. No cambia ningun comportamiento existente.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        formatDate,
+        formatDateTime,
+        escapeHTML,
+        showAlert,
+        validateEmail,
+        validateTelefono,
+        isFutureDate,
+        localToISO,
+    };
+}

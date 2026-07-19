@@ -144,3 +144,15 @@ const HistoriasAPI = {
 
     porDoctor: (doctorId) => apiFetch(`/historias-clinicas/doctor/${doctorId}`),
 };
+
+// Export CommonJS solo para pruebas con Jest (Node). En el navegador este
+// bloque no se ejecuta; el comportamiento existente no cambia.
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        apiFetch,
+        PacientesAPI,
+        DoctoresAPI,
+        CitasAPI,
+        HistoriasAPI,
+    };
+}

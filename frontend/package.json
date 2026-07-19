@@ -1,0 +1,28 @@
+{
+  "name": "hospital-management-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Frontend vanilla JS del Hospital Management System - pruebas de Validacion y Verificacion",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
+    "lint": "eslint \"js/**/*.js\""
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": [
+      "**/js/__tests__/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "js/*.js",
+      "!js/app.js"
+    ]
+  }
+}
