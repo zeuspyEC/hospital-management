@@ -1,0 +1,56 @@
+{
+    "root": true,
+    "env": {
+        "browser": true,
+        "es2021": true
+    },
+    "extends": "eslint:recommended",
+    "parserOptions": {
+        "ecmaVersion": "latest",
+        "sourceType": "script"
+    },
+    "globals": {
+        "App": "readonly",
+        "PacientesModule": "readonly",
+        "DoctoresModule": "readonly",
+        "CitasModule": "readonly",
+        "HistoriasModule": "readonly",
+        "PacientesAPI": "readonly",
+        "DoctoresAPI": "readonly",
+        "CitasAPI": "readonly",
+        "HistoriasAPI": "readonly",
+        "apiFetch": "readonly",
+        "API_BASE": "readonly",
+        "formatDate": "readonly",
+        "formatDateTime": "readonly",
+        "escapeHTML": "readonly",
+        "showAlert": "readonly",
+        "validateEmail": "readonly",
+        "validateTelefono": "readonly",
+        "isFutureDate": "readonly",
+        "localToISO": "readonly",
+        "module": "readonly"
+    },
+    "rules": {
+        "no-unused-vars": "warn",
+        "no-console": "off",
+        "no-redeclare": ["error", { "builtinGlobals": false }]
+    },
+    "overrides": [
+        {
+            "files": ["js/__tests__/**/*.js"],
+            "env": {
+                "jest": true,
+                "node": true,
+                "commonjs": true
+            }
+        },
+        {
+            "files": ["e2e/**/*.js", "playwright.config.js"],
+            "env": {
+                "node": true,
+                "commonjs": true
+            }
+        }
+    ]
+}

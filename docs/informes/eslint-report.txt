@@ -1,0 +1,15 @@
+
+/home/zeus/Documentos/VERIFICACION_Y_VALIDACION/hospital-management/frontend/js/citas.js
+  11:7  warning  'CitasModule' is assigned a value but never used  no-unused-vars
+
+/home/zeus/Documentos/VERIFICACION_Y_VALIDACION/hospital-management/frontend/js/doctores.js
+  10:7  warning  'DoctoresModule' is assigned a value but never used  no-unused-vars
+
+/home/zeus/Documentos/VERIFICACION_Y_VALIDACION/hospital-management/frontend/js/historias.js
+  10:7  warning  'HistoriasModule' is assigned a value but never used  no-unused-vars
+
+/home/zeus/Documentos/VERIFICACION_Y_VALIDACION/hospital-management/frontend/js/pacientes.js
+  11:7  warning  'PacientesModule' is assigned a value but never used  no-unused-vars
+
+✖ 4 problems (0 errors, 4 warnings)
+
