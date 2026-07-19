@@ -43,6 +43,16 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- Corrige bug real (no intencional): sin este modulo, Jackson no puede
+             serializar los proxies Hibernate de relaciones @ManyToOne(LAZY) como
+             Cita.doctor o HistoriaClinica.paciente/doctor, y GET /api/citas y
+             GET /api/historias-clinicas fallan siempre con 500. Se auto-registra
+             via ServiceLoader, sin tocar entidades ni controladores. -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-hibernate6</artifactId>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
